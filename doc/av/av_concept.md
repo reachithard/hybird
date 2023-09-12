@@ -4,7 +4,7 @@
 
 ## 流媒体收发过程
 
-![流媒体收发过程](.\res\流媒体收发过程.jpg)
+![流媒体收发过程](./res/流媒体收发过程.jpg)
 
 如上，流媒体传输主要有三个阶段：采集，编码，传输。
 
@@ -12,7 +12,7 @@
 * 编码：编码将音视频信号转换为数字信号，以便对其进行传输，主要有H264，其中分为encode，mux。
 * 传输：传输是将音视频信号传输到后端，主要有RTMP，RTSP，WebRtc等。
 
-![音视频采集](.\res\mux.webp)
+![音视频采集](./res/mux.webp)
 
 流媒体接收主要有三个阶段：接收，解码，播放。
 
@@ -22,11 +22,11 @@
 
 * 播放：是将音视频信号数据进行同步后播放，主要有VLC，也有自研的[kplayer](https://github.com/reachithard/kplayer)
 
-  ![音视频播放](.\res\demux.webp)
+  ![音视频播放](./res/demux.webp)
 
 ## 视频主要概念
 
-![视频主要概念](.\res\video_base.png)
+![视频主要概念](./res/video_base.png)
 
 * 码率
 
@@ -47,7 +47,7 @@
 
   指在内存中每行像素所占的空间。为了实现内存对齐每行像素在内存中所占的空间并不一定是图像的宽度。 
 
-  ![stride](.\res\stride.webp)
+  ![stride](./res/stride.webp)
 
 * 帧
 
@@ -71,7 +71,7 @@
   * DTS, Decoding TimeStamp 解码时间戳，用于告诉解码器什么时候解码。
   * PTS, Presentation TimeStamp 显示时间戳，用于告诉播放器在什么时候显示这一帧。
 
-![pts和dts](.\res\PTS_DTS.webp)
+![pts和dts](./res/PTS_DTS.webp)
 
 ## 视频编码
 
