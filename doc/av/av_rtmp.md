@@ -189,3 +189,110 @@ C0 A8 01 67   // 表示客户端IP，C0.A8.01.67，即192.168.1.103
 03            // 客户端原始的C0数据。从这个数据（包括它本身）开始，就是客户端发送的消息了，譬如C1C2。
 ```
 
+### SRS的Handshake源码如下：
+
+```
+srs_error_t SrsRtmpServer::handshake()
+{
+	...
+    SrsComplexHandshake complex_hs;
+    if ((err = complex_hs.handshake_with_client(hs_bytes, io)) != srs_success) {
+            if ((err = simple_hs.handshake_with_client(hs_bytes, io)) != srs_success) {
+                return srs_error_wrap(err, "simple handshake");
+            }
+    }
+	...
+}
+
+srs_error_t SrsComplexHandshake::handshake_with_client(SrsHandshakeBytes* hs_bytes, ISrsProtocolReadWriter* io)
+{
+	hs_bytes->read_c0c1(io)
+    c1.parse(hs_bytes->c0c1 + 1, 1536, srs_schema0) // 代理协议
+    c1.c1_validate_digest // 验证c1 schema0 和schema1
+    s1.s1_create(&c1) // s1生成，用了s1生成算法
+    s1.s1_validate_digest(is_valid) // 进行校验
+    s2.s2_create(&c1) // 生成s2
+    s2.s2_validate(&c1, is_valid)
+    // 数据拷贝 发送
+    hs_bytes->read_c2(io) // 读取c2，但没校验
+}
+```
+
+## RTMP消息格式
+
+### Chunk
+
+RTMP 传输的数据称为Message，Message包含音视频数据和信令，传输时不是以Message为单位的，而是把Message拆分成Chunk发送，而且必须在一个Chunk发送完成之后才能开始发送下一个Chunk，每个Chunk中带有msg stream id代表属于哪个Message，接受端也会按照这个id来将chunk组装成Message。
+![](.\res\RTMP块格式.png)
+
+#### Basic Header
+
+* chunk type（2位）+chunk stream id（6位，14位，22位），basic header有三种类型，分别为1字节，2字节，3字节。其中最高二位`chunk type`的值代表整个chunk的类型，后续补充，**chunk stream id**一般被简写为**CSID**,用来唯一标识一个特定的流通道
+* **RTMP**协议最多支持**65597**个用户自定义**chunk stream ID**,范围为 **[3,65599]**,**ID 0、1、2**被协议规范直接使用,其中**ID 值为 0、1 分表表示了 Basic Header 占用 2 个字节和 3 个字节**。
+* **CSID 值 0**:代表**Basic Header**占用**2**个字节,**CSID**在 **[64,319]** 之间。**CSID 值 1**:代表**Basic Header**占用**3**个字节,**CSID**在 **[64,65599]** 之间。**CSID 值 2**:代表该**chunk**是**控制信息和一些命令信息**。
+
+以下见basic header的类型。
+
+![](C:\workspace\hybird\doc\av\res\RTMP块基础头1.png)
+
+如上，该类型为1字节类型，高二位为chunk type，低六位为chunk stream id。2的六次方为64，其中**CSID 值 0**:代表**Basic Header**占用**2**个字节,。**CSID 值 1**:代表**Basic Header**占用**3**个字节,。**CSID 值 2**:代表该**chunk**是**控制信息和一些命令信息**。因此可自定义的在[3, 63]闭区间内。
+
+![](C:\workspace\hybird\doc\av\res\RTMP块基础头2.png)
+
+如上，该类型为2字节类型，**CSID**只占**8**位，第一个字节除**chunk type**占用的 bit 都置为**0**,第二个字节用来表示**CSID - 64**,8 位可以表示 **[0, 255]** 共 256 个数,ID 的计算方法为(第二个字节+64),范围为 **[64,319]**。
+
+![](C:\workspace\hybird\doc\av\res\RTMP块基础头3.png)
+
+当**Basic Header**为**3**个字节时,**ID 的计算方法为(第三字节\*256+第二字节+64)**(Basic Header 是采用小端存储的方式),范围为 **[64,65599]**。
+
+##### SRS的Basic Header解析
+
+```
+srs_error_t SrsProtocol::read_basic_header(char& fmt, int& cid)
+{
+    srs_error_t err = srs_success;
+    
+    if ((err = in_buffer->grow(skt, 1)) != srs_success) {
+        return srs_error_wrap(err, "basic header requires 1 bytes");
+    }
+    
+    fmt = in_buffer->read_1byte();
+    cid = fmt & 0x3f;
+    fmt = (fmt >> 6) & 0x03;
+    
+    // 2-63, 1B chunk header
+    if (cid > 1) {
+        return err;
+    // 64-319, 2B chunk header
+    } else if (cid == 0) {
+        if ((err = in_buffer->grow(skt, 1)) != srs_success) {
+            return srs_error_wrap(err, "basic header requires 2 bytes");
+        }
+
+        cid = 64;
+        cid += (uint8_t)in_buffer->read_1byte();
+    // 64-65599, 3B chunk header
+    } else {
+        srs_assert(cid == 1);
+
+        if ((err = in_buffer->grow(skt, 2)) != srs_success) {
+            return srs_error_wrap(err, "basic header requires 3 bytes");
+        }
+        
+        cid = 64;
+        cid += (uint8_t)in_buffer->read_1byte();
+        cid += ((uint8_t)in_buffer->read_1byte()) * 256;
+    }
+    
+    return err;
+}
+```
+
+#### Message Header
+
+**Message Header**的格式和长度取决于**Basic Header**的**chunk type**,共有**4**种不同的格式,由上面所提到的**Basic Header**中的 **fmt**字段控制。
+
+
+
+### Message
+
