@@ -111,3 +111,439 @@ dts = 初 始 值 + (90000 * audio_samples_per_frame) / audio_sample_rate ，aud
 
 ## SRS的HLS源码解析
 
+SrsRtmpConn::publishing该函数是RTMP的实际推流函数。现在主要分析HLS协议相关，分析RTMP请看其他文章。
+
+### 初始化相关HLS
+
+```
+srs_error_t SrsRtmpConn::publishing(SrsLiveSource* source)
+{
+	...
+    if ((err = acquire_publish(source)) == srs_success) {
+        SrsPublishRecvThread rtrd(rtmp, req, srs_netfd_fileno(stfd), 0, this, source, _srs_context->get_id());
+        err = do_publishing(source, &rtrd);
+        rtrd.stop();
+    }
+	...    
+    return err;
+}
+
+srs_error_t SrsRtmpConn::acquire_publish(SrsLiveSource* source)
+{
+    ...
+    err = source->on_publish(); // 这里会去触发hls相关
+	...
+    return err;
+}
+
+srs_error_t SrsLiveSource::on_publish()
+{
+	...
+    if ((err = hub->on_publish()) != srs_success) {
+        return srs_error_wrap(err, "hub publish");
+    }
+    ...
+}
+
+srs_error_t SrsOriginHub::on_publish()
+{
+    ...
+    if ((err = hls->on_publish()) != srs_success) {
+        return srs_error_wrap(err, "hls publish");
+    }
+    ...
+    return err;
+}
+
+srs_error_t SrsHls::on_publish()
+{
+    ...
+    // 这里干的活多，初始化muxer 配置更新，打开文件
+    if ((err = controller->on_publish(req)) != srs_success) {
+        return srs_error_wrap(err, "hls: on publish");
+    }
+	...
+}
+
+srs_error_t SrsHlsController::on_publish(SrsRequest* req)
+{
+    ...
+    if ((err = muxer->on_publish(req)) != srs_success) { // 异步处理相关
+        return srs_error_wrap(err, "muxer publish");
+    }
+    // 配置相关
+    if ((err = muxer->update_config(req, entry_prefix, path, m3u8_file, ts_file, hls_fragment,
+        hls_window, ts_floor, hls_aof_ratio, cleanup, wait_keyframe,hls_keys,hls_fragments_per_key,
+        hls_key_file, hls_key_file_path, hls_key_url)) != srs_success ) {
+        return srs_error_wrap(err, "hls: update config");
+    }
+    
+    if ((err = muxer->segment_open()) != srs_success) { // 文件相关 这个之后会分析，放之后分析了
+        return srs_error_wrap(err, "hls: segment open");
+    }
+    ...
+    return err;
+}
+```
+
+### 推流，流分割
+
+在初始化时, 会启动该协程，接收RTMP消息
+
+```
+SrsPublishRecvThread rtrd(rtmp, req, srs_netfd_fileno(stfd), 0, this, source, _srs_context->get_id());
+        err = do_publishing(source, &rtrd);
+```
+
+如下：
+
+```
+srs_error_t SrsPublishRecvThread::consume(SrsCommonMessage* msg)
+{
+    ...
+    err = _conn->handle_publish_message(_source, msg);
+    ...
+    return err;
+}
+
+srs_error_t SrsRtmpConn::handle_publish_message(SrsLiveSource* source, SrsCommonMessage* msg)
+{
+    srs_error_t err = srs_success;
+    ... 
+    // 上面是解包逻辑
+    // video, audio, data message 
+    if ((err = process_publish_message(source, msg)) != srs_success) {
+        return srs_error_wrap(err, "rtmp: consume message");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsRtmpConn::process_publish_message(SrsLiveSource* source, SrsCommonMessage* msg)
+{
+    ...
+    if ((err = source->on_audio(msg)) != srs_success) { // 音频
+    	return srs_error_wrap(err, "rtmp: consume audio");
+    }
+    ...
+    if ((err = source->on_video(msg)) != srs_success) { // 视频 只分析一个 其余类似
+    	return srs_error_wrap(err, "rtmp: consume video");
+    }
+    ...
+    if ((err = source->on_meta_data(msg, metadata)) != srs_success) { // 元数据
+    	return srs_error_wrap(err, "rtmp: consume metadata");
+    }
+    ...
+    return err;
+}
+
+srs_error_t SrsLiveSource::on_video(SrsCommonMessage* shared_video)
+{
+	...
+    return on_frame(&msg);
+}
+
+srs_error_t SrsLiveSource::on_frame(SrsSharedPtrMessage* msg)
+{
+	...
+    if (m->is_audio()) {
+        err = on_audio_imp(m); // 音频处理
+    } else {
+        err = on_video_imp(m); // 视频处理
+    }
+    srs_freep(m);
+    
+    return err;
+}
+
+srs_error_t SrsLiveSource::on_video_imp(SrsSharedPtrMessage* msg)
+{
+    srs_error_t err = srs_success;
+	...
+    if ((err = hub->on_video(msg, is_sequence_header)) != srs_success) { // 传给HLS
+        return srs_error_wrap(err, "hub consume video");
+    }
+	...
+    return err;
+}
+
+srs_error_t SrsOriginHub::on_video(SrsSharedPtrMessage* shared_video, bool is_sequence_header)
+{
+	...
+    if ((err = hls->on_video(msg, format)) != srs_success) { // hls处理
+        ...
+    }
+    
+    ...
+    return err;
+}
+
+srs_error_t SrsHls::on_video(SrsSharedPtrMessage* shared_video, SrsFormat* format)
+{
+    srs_error_t err = srs_success;
+	...
+    int64_t dts = video->timestamp * 90;
+    if ((err = controller->write_video(format->video, dts)) != srs_success) {
+        return srs_error_wrap(err, "hls: write video");
+    }
+    ...
+    return err;
+}
+
+srs_error_t SrsHlsController::write_video(SrsVideoFrame* frame, int64_t dts)
+{
+    srs_error_t err = srs_success;
+    ...
+
+    // write video to cache.
+    if ((err = tsmc->cache_video(frame, dts)) != srs_success) { // 缓存
+        return srs_error_wrap(err, "hls: cache video");
+    }
+    
+    // when segment overflow, reap if possible.
+    if (muxer->is_segment_overflow()) {
+        // do reap ts if any of:
+        //      a. wait keyframe and got keyframe.
+        //      b. always reap when not wait keyframe.
+        if (!muxer->wait_keyframe() || frame->frame_type == SrsVideoAvcFrameTypeKeyFrame) {
+            // reap the segment, which will also flush the video.
+            if ((err = reap_segment()) != srs_success) { // 写
+                return srs_error_wrap(err, "hls: reap segment");
+            }
+        }
+    }
+    
+    // flush video when got one
+    if ((err = muxer->flush_video(tsmc)) != srs_success) { // 更新
+        return srs_error_wrap(err, "hls: flush video");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsHlsController::reap_segment()
+{
+    srs_error_t err = srs_success;
+    
+    // TODO: flush audio before or after segment?
+    // TODO: fresh segment begin with audio or video?
+    
+    // close current ts.
+    if ((err = muxer->segment_close()) != srs_success) {
+        // When close segment error, we must reopen it for next packet to write.
+        srs_error_t r0 = muxer->segment_open();
+        if (r0 != srs_success) {
+            srs_warn("close segment err %s", srs_error_desc(r0).c_str());
+            srs_freep(r0);
+        }
+
+        return srs_error_wrap(err, "hls: segment close");
+    }
+    
+    // open new ts.
+    if ((err = muxer->segment_open()) != srs_success) {
+        return srs_error_wrap(err, "hls: segment open");
+    }
+    
+    // segment open, flush video first.
+    if ((err = muxer->flush_video(tsmc)) != srs_success) {
+        return srs_error_wrap(err, "hls: flush video");
+    }
+    
+    // segment open, flush the audio.
+    // @see: ngx_rtmp_hls_open_fragment
+    /* start fragment with audio to make iPhone happy */
+    if ((err = muxer->flush_audio(tsmc)) != srs_success) {
+        return srs_error_wrap(err, "hls: flush audio");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsHlsController::reap_segment()
+{
+    srs_error_t err = srs_success;
+    
+    // close current ts.
+    if ((err = muxer->segment_close()) != srs_success) { // 关闭ts 以及更新m3u8 以及重命名ts
+		...
+    }
+    
+    // open new ts.
+    if ((err = muxer->segment_open()) != srs_success) { // 打开ts
+        return srs_error_wrap(err, "hls: segment open");
+    }
+    
+    // segment open, flush video first.
+    if ((err = muxer->flush_video(tsmc)) != srs_success) { // 视频 按照协议写入
+        return srs_error_wrap(err, "hls: flush video");
+    }
+    
+    // segment open, flush the audio.
+    // @see: ngx_rtmp_hls_open_fragment
+    /* start fragment with audio to make iPhone happy */
+    if ((err = muxer->flush_audio(tsmc)) != srs_success) { // 音频 按照协议写入
+        return srs_error_wrap(err, "hls: flush audio");
+    }
+    
+    return err;
+}
+```
+
+### 拉流
+
+hls也是http协议。
+
+* 拉流初始化
+
+```
+srs_error_t SrsServerAdapter::run(SrsWaitGroup* wg)
+{
+    srs_error_t err = srs_success;
+
+    // Initialize the whole system, set hooks to handle server level events.
+    if ((err = srs->initialize()) != srs_success) { // 这里会去注册路由
+        return srs_error_wrap(err, "server initialize");
+    }
+	...
+    return err;
+}
+
+srs_error_t SrsServer::initialize()
+{
+	...
+
+    if ((err = http_server->initialize()) != srs_success) { // http服务器初始化
+        return srs_error_wrap(err, "http server initialize");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsHttpServer::initialize()
+{
+    ...
+    // 静态路由初始化
+    if ((err = http_static->initialize()) != srs_success) {
+        return srs_error_wrap(err, "http static");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsHttpStaticServer::initialize()
+{
+    srs_error_t err = srs_success;
+    
+    if (!default_root_exists) {
+        // add root
+        std::string dir = _srs_config->get_http_stream_dir();
+        if ((err = mux.handle("/", new SrsVodStream(dir))) != srs_success) { // vod路由注册，http请求到来，会触发serve_http函数
+            return srs_error_wrap(err, "mount root dir=%s", dir.c_str());
+        }
+        srs_trace("http: root mount to %s", dir.c_str());
+    }
+    
+    return err;
+}
+```
+
+### 拉流
+
+客户端发送hls请求（http）。
+
+```
+srs_error_t SrsHttpConn::cycle()
+{
+    srs_error_t err = do_cycle();
+}
+
+srs_error_t SrsHttpConn::do_cycle()
+{
+    srs_error_t err = srs_success;
+    
+    ...
+    err = process_requests(&last_req);
+    ...
+    
+    return err;
+}
+
+srs_error_t SrsHttpConn::process_request(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, int rid)
+{
+    srs_error_t err = srs_success;
+    ...
+    if ((err = cors->serve_http(w, r)) != srs_success) { // 跨域
+        return srs_error_wrap(err, "cors serve");
+    }
+    ...
+    return err;
+}
+
+srs_error_t SrsHttpCorsMux::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
+{
+	...
+    return next_->serve_http(w, r); // next为auth 以上代码是为了跨域
+}
+
+srs_error_t SrsHttpAuthMux::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
+{
+	...
+    return next_->serve_http(w, r); // next为http_server 以上代码是为了auth
+}
+
+srs_error_t SrsHttpServer::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
+{
+    srs_error_t err = srs_success;
+    ...
+    // Try http stream first, then http static if not found.
+    ISrsHttpHandler* h = NULL;
+    if ((err = http_stream->mux.find_handler(r, &h)) != srs_success) { // 这里会去找hander 在SrsHttpStreamServer::http_mount里面注册的
+        return srs_error_wrap(err, "find handler");
+    }
+    if (!h->is_not_found()) {
+        return http_stream->mux.serve_http(w, r);
+    }
+	...
+    // Use http static as default server.
+    return http_static->mux.serve_http(w, r);
+}
+
+srs_error_t SrsHttpServeMux::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
+{
+    srs_error_t err = srs_success;
+    
+    ISrsHttpHandler* h = NULL;
+    if ((err = find_handler(r, &h)) != srs_success) { // 再找一次
+        return srs_error_wrap(err, "find handler");
+    }
+    
+    srs_assert(h);
+    if ((err = h->serve_http(w, r)) != srs_success) { // 触发实际处理函数
+        return srs_error_wrap(err, "serve http");
+    }
+    
+    return err;
+}
+
+srs_error_t SrsHttpFileServer::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
+{
+	...
+    // handle file according to its extension.
+    // use vod stream for .flv/.fhv
+    if (srs_string_ends_with(fullpath, ".flv") || srs_string_ends_with(fullpath, ".fhv")) {
+        return serve_flv_file(w, r, fullpath); // flv文件
+    } else if (srs_string_ends_with(fullpath, ".mp4")) {
+        return serve_mp4_file(w, r, fullpath); // mp4文件
+    } else if (srs_string_ends_with(upath, ".m3u8")) {
+        return serve_m3u8_file(w, r, fullpath); // m3u8文件
+    } else if (srs_string_ends_with(upath, ".ts")) {
+        return serve_ts_file(w, r, fullpath); // ts文件
+    }
+    
+    // serve common static file.
+    return serve_file(w, r, fullpath); // 普通文件
+}
+```
+
+后续就是传输m3u8和ts文件了。供客户端渲染展示
