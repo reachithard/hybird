@@ -6,7 +6,7 @@
 
 作为**Apple**提出的一种基于**HTTP**的协议,**HLS(HTTP Live Streaming)用于解决实时音视频流的传输。尤其是在移动端,由于iOS/H5**不支持**flash**,使得**HLS**成了移动端实时视频流传输的首选。**HLS**经常用在直播领域,一些国内的直播云通常用**HLS**拉流。
 
-![](.\res\HLS框架.png)
+![](./res/HLS框架.png)
 
 - **流分割器(Stream Segmenter)负责将编码器输出的MPEG-2 TS**流分割为一系列**连续的、长度均等的**小**TS**文件,并依次发送至内容分发组件中的**Web**服务器进行存储。
 - 为了跟踪播放过程中媒体文件的可用性和当前位置,流分割器还需创建一个含有指向这些小**TS**文件指针的索引文件,同样放置于**Web**服务器之中。m3u8文件
@@ -32,7 +32,7 @@ m3u8为索引文件。
 
 
 
-![](C:\workspace\hybird\doc\av\res\TS文件分层.png)
+![](./res/TS文件分层.png)
 
 * **ts包为188字节。**
 * ts包包含header+adaptation field+payload，header用于描述Payload中数据的类型，payload既可以是PSI(Program Specific Information)元数据 也可以是音视频数据
@@ -40,7 +40,7 @@ m3u8为索引文件。
 
 ### Ts header
 
-![](.\res\ts_header.png)
+![](./res/ts_header.png)
 
 * 由上可知，假设adaptation为x，则`4+x+payload length = 188`, 当adaptation_filed_control为11B时，有该公式。
 
@@ -48,15 +48,15 @@ m3u8为索引文件。
 
 以下为各字段信息：
 
-![](.\res\ts_header_desc.png)
+![](./res/ts_header_desc.png)
 
 适配域如下：
 
-![](.\res\adaption_field.png)
+![](./res/adaption_field.png)
 
 适配域含义如下：
 
-![](.\res\adaption_field_desc.png)
+![](./res/adaption_field_desc.png)
 
 ### PAT和PMT的作用：
 
@@ -67,19 +67,19 @@ m3u8为索引文件。
 
 #### PAT格式如图
 
-![](C:\workspace\hybird\doc\av\res\pat.png)
+![](./res/pat.png)
 
 开始循环和结束循环的意思为中间字段为一组按组内顺序重复。
 
 #### PMT格式如图
 
-![](C:\workspace\hybird\doc\av\res\pmt.png)
+![](./res/pmt.png)
 
 开始循环和结束循环的意思为中间字段为一组按组内顺序重复。
 
 ### pes
 
-![](.\res\pes_packet.png)
+![](./res/pes_packet.png)
 
 * PES 由Base Header，Optional Header以及Payload组成。
 
@@ -87,11 +87,11 @@ m3u8为索引文件。
 
 * stream id 0xCD~0xDF标识音频 0xE0~0xEF标识视频，packet_length PES的长度，这个长度是从packet_length 字段后的第一个字节开始算起，此值为0表示长度不受限制
 
-![](.\res\pes_base_header.png)
+![](./res/pes_base_header.png)
 
 #### pes optional header
 
-![](.\res\pes_option_header.png)
+![](./res/pes_option_header.png)
 
 header_info_length （1字节）标识了Optional Header 中是否有信息区域，如果值不为0的话说明后面还跟着信息区。而信息区中的内容就是根据前面Optional Header的几个标志位来决定 比如是否包含PTS DTS
 
