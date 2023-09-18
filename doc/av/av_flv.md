@@ -18,28 +18,28 @@
 
 * 一个标准的FLV文件结构如下图所示：
 
-![](.\res\flv.webp)
+![](./res/flv.webp)
 
 * 其中flv header为9字节
 * previousTagsize0总为0
 
 ## FLV header
 
-![](.\res\format_header.png)
+![](./res/format_header.png)
 
 以上为官方的字段解释，以下为解释
 
-![](C:\workspace\hybird\doc\av\res\unformat_flv_header.png)
+![](./res/unformat_flv_header.png)
 
 是否有音频`data[4] & 0x04`, 是否有视频`data[4] & 0x01`
 
 ## FLV Body
 
-![](C:\workspace\hybird\doc\av\res\format_flv_body.png)
+![](./res/format_flv_body.png)
 
 以上为官方解释，其中注意，PreviousTagSize0一直为0。
 
-![](.\res\unformat_flv_body.png)
+![](./res/unformat_flv_body.png)
 
 每一个tag其实是由两部分组成，Tag header(11 Byte)+Tag data(实际数据域)。Tag Header中存放着
 
@@ -47,37 +47,37 @@ TagType、DataSize等字段信息。而Tag data部分就是实际数据域信息
 
 ### FLV Tag
 
-![](C:\workspace\hybird\doc\av\res\format_flv_tag.png)
+![](./res/format_flv_tag.png)
 
 以上为官方解释
 
-![](C:\workspace\hybird\doc\av\res\unformat_flv_tag.png)
+![](./res/unformat_flv_tag.png)
 
 ### FLV Data
 
 * #### audio data tag
 
-![](C:\workspace\hybird\doc\av\res\format_flv_audio_data.png)
+![](./res/format_flv_audio_data.png)
 
 以上为官方解释
 
-![](C:\workspace\hybird\doc\av\res\unformat_flv_audio_data.png)
+![](./res/unformat_flv_audio_data.png)
 
 其中 AACAUDIODATA为
 
-![](C:\workspace\hybird\doc\av\res\format_flv_audio2.png)
+![](./res/format_flv_audio2.png)
 
 * #### video data tag
 
-![](C:\workspace\hybird\doc\av\res\format_flv_video_data.png)
+![](./res/format_flv_video_data.png)
 
 以上为官方解释
 
-![](C:\workspace\hybird\doc\av\res\unformat_flv_video_data.png)
+![](./res/unformat_flv_video_data.png)
 
 其中AVCVIDEOPACKET为
 
-![](C:\workspace\hybird\doc\av\res\format_flv_video_data2.png)
+![](./res/format_flv_video_data2.png)
 
 * #### script data tag
 
