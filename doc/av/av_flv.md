@@ -23,6 +23,10 @@
 * 其中flv header为9字节
 * previousTagsize0总为0
 
+如下图：
+
+![](./res/flv_protocol.jpg)
+
 ## FLV header
 
 ![](./res/format_header.png)
@@ -32,6 +36,10 @@
 ![](./res/unformat_flv_header.png)
 
 是否有音频`data[4] & 0x04`, 是否有视频`data[4] & 0x01`
+
+如下图：
+
+![](./res/flv_header_res.jpg)
 
 ## FLV Body
 
@@ -53,6 +61,10 @@ TagType、DataSize等字段信息。而Tag data部分就是实际数据域信息
 
 ![](./res/unformat_flv_tag.png)
 
+如下：
+
+![](./res/flv_tag_header_res.jpg)
+
 ### FLV Data
 
 * #### audio data tag
@@ -67,6 +79,10 @@ TagType、DataSize等字段信息。而Tag data部分就是实际数据域信息
 
 ![](./res/format_flv_audio2.png)
 
+如下：
+
+![](./res/flv_audio_tag.jpg)
+
 * #### video data tag
 
 ![](./res/format_flv_video_data.png)
@@ -79,9 +95,15 @@ TagType、DataSize等字段信息。而Tag data部分就是实际数据域信息
 
 ![](./res/format_flv_video_data2.png)
 
+如下：
+
+![](./res/flv_video_tag.jpg)
+
 * #### script data tag
 
 amf格式。 // todo 进行补充
+
+![](./res/flv_script_tag.jpg)
 
 ## ffmpeg的flv源码解析
 
