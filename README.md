@@ -36,3 +36,5 @@
 
 [OOM问题记录](./doc/feature/linux_bugfix_2023_9_23.md)
 
+[跨线程渲染窗口崩溃问题记录](./doc/feature/windows_thread_with_window_2023_9_26.md)
+
