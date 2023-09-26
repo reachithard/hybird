@@ -10,6 +10,8 @@
 
 [音视频之概述](./doc/av/av_concept.md)
 
+[音视频之AAC](./doc/av/av_aac.md)
+
 [音视频之flv协议](./doc/av/av_flv.md)
 
 [音视频之hls协议](./doc/av/av_hls.md)
