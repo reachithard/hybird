@@ -38,3 +38,7 @@
 
 [跨线程渲染窗口崩溃问题记录](./doc/feature/windows_thread_with_window_2023_9_26.md)
 
+[linux因多线程及生命周期导致崩溃问题](./doc/feature/linux_mutil_thread.md)
+
+
+
