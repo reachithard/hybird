@@ -102,7 +102,7 @@ C无法和A进行通信，因为A从来没有和C通信过，NAT会拒绝C试图
 
 ## TURN
 
-
+https://www.cnblogs.com/cnhk19/p/14295201.html
 
 ## SDP
 
