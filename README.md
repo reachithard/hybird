@@ -34,6 +34,8 @@
 
 [网络基础](./doc/common/network.md)
 
+[惊群与nginx惊群处理](./doc/feature/nginx_crowd.md)
+
 ## 操作系统
 
 [操作系统基础](./doc/common/linux.md)
