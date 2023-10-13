@@ -48,5 +48,7 @@
 
 [linux因多线程及生命周期导致崩溃问题](./doc/feature/linux_mutil_thread.md)
 
+[软件运行耗时长问题定位记录](./doc/featrue/linux_process_perf.md)
+
 
 
