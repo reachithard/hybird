@@ -40,6 +40,8 @@
 
 [操作系统基础](./doc/common/linux.md)
 
+[伪共享](./doc/common/false_shared.md)
+
 ## 开发中遇到的坑记录
 
 [OOM问题记录](./doc/feature/linux_bugfix_2023_9_23.md)
