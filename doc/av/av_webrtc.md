@@ -100,6 +100,13 @@ C无法和A进行通信，因为A从来没有和C通信过，NAT会拒绝C试图
        这个主要发送响应的时候使用不同IP地址和端口或者改变端口等等。这个检测是对NAT一般情况下有效，但是对防火墙就无能为力了，因为防火墙可能不会打开UDP端口。
 ![](./res/nat_detect.webp)
 
+**STUN协议定义了三类测试过程来检测NAT类型，具体步骤见上图：**
+
+- **Test1：**STUN Client通过端口{IP-C1:Port-C1}向STUN Server{IP-S1:Port-S1}发送一个Binding Request（没有设置任何属性）。STUN Server收到该请求后，通过端口{IP-S1:Port-S1}把它所看到的STUN Client的IP和端口{IP-M1,Port-M1}作为Binding Response的内容回送给STUN Client。
+- **Test1#（server#2）：**STUN Client通过端口{IP-C1:Port-C1}向STUN Server{IP-S2:Port-S2}发送一个Binding Request（没有设置任何属性）。STUN Server收到该请求后，通过端口{IP-S2:Port-S2}把它所看到的STUN Client的IP和端口{IP-M1#2,Port-M1#2}作为Binding Response的内容回送给STUN Client。
+- **Test2：**STUN Client通过端口{IP-C1:Port-C1}向STUN Server{IP-S1:Port-S1}发送一个Binding Request（设置了Change IP和Change Port属性）。STUN Server收到该请求后，通过端口{IP-S2:Port-S2}把它所看到的STUN Client的IP和端口{IP-M2,Port-M2}作为Binding Response的内容回送给STUN Client。
+- **Test3：**STUN Client通过端口{IP-C1:Port-C1}向STUN Server{IP-S1:Port-S1}发送一个Binding Request（设置了Change Port属性）。STUN Server收到该请求后，通过端口{IP-S1:Port-S2}把它所看到的STUN Client的IP和端口{IP-M3,Port-M3}作为Binding Response的内容回送给STUN Client。
+
 ## TURN
 
 https://www.cnblogs.com/cnhk19/p/14295201.html
