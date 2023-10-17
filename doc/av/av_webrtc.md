@@ -144,7 +144,43 @@ https://www.cnblogs.com/cnhk19/p/14295201.html
             192.0.2.1:7000      192.0.2.15:50000     192.0.2.210:49191  
 ```
 
+这张图中，TURN client处于NAT内，TURN server处于NAT外，假设这个NAT是一个"bad NAT"; 例如其使用"地址-端口依赖映射"的NAT。
 
+client告诉服务的（IP和端口）组合称为client's HODST TRANSPORT ADDRESS。（也称为TRANSPORT ADDRESS)
+
+client发送TURN消息给TURN server的TURN SERVER TRANSPORT ADDRESS。client通过其他途径（比如配置）获得这一地址。
+
+client使用TURN命令进行创建和管理一个名为ALLOCATION的资源在TURN server上。一个allocation是TURN server里的一个数据结构。
+它包含但不限于RELAYED TRANSPORT ADDRESS。turn server发送从client获得要发送的数据后并通过这个relayed transport address发送给相关的peer。
+并且allocation可以通过relayed transport address作为唯一标示。
+
+一旦一个allocation被创建，client能发送应用数据给server，并且通过server中继这个数据给相关的peer。client发送的数据还是TURN的消息；
+当server收到后将从消息中提取DATA部分，并通过原始UDP报文发送给对应的peer。
+反向，当server收到peer的UDP数据，会封住为TURN的消息格式发送个对应的client。消息中包含peer的相关信息，因此可以使用一个allocatoin与多个peer同时通讯。
+
+当peer处于NAT内，client必须指定peer的server-reflexive transport address，而不是它的host transport address，举例，
+在上图示例中，向PeerA发送数据时，在client必须指定192.0.2.150:32102 (Peer A's server-reflexive transport address)，
+而不是192.168.100.2:49582 (Peer A's host transport address)。
+
+在server端，每个allocation都能够关联一个单独client,这样能保证relayed transport address收到数据后只会被传送给对应的client。
+
+client可以同事拥有多个allocation在服务端。
+
+整理实际应用中Turn协议的工作主要有四个阶段：绑定（binding）、分配（Allocation）、转发（Relay）和信道（Channel）
+
+### client<->peer b
+
+首先一个TURN Client端是在一个NAT之后的，这个时候TURN Client端它要发送一个请求给这个TURN Server，那么TURN Server是在另外一个网络地址，端口是3487，  TURN Client在向TURN Server发送请求的时候会形成一组映射地址(出口)地址. 此时TURN Client发送一个Arrow的请求到TURN 服务端，TURN Server收到请求之后就会另外开通一个  服务地址 192.0.2.15的地址端口是50000来提供这种UDP中转的这种服务，  所以TURN Server对同一个TURN Client端来说有两个端口，一个是与TURN Client端连接的端口，另外一个是提供中转的端口50000，  如果它现在与Peer B进行通讯，Peer B与TURN Server是在同一个网段，地址是192.0.2.210端口是49191，这个时候它就可以向中转的TURN Server中转的去发数据了。  同样的他们建立连接之后 ，TURN  Server也可以给这个Peer B发送数据，那这个时候Peer B如果发送数据到 50000这个端口，在TURN server的内部就会转到3478然后最终中继给这个TURN Client端；  同样的如果TURN Client端想给Peer B发送消息的时候，它是先发到3478端口，然后经过内部的中转转成UDP然后再给Peer B，这就是它的一个逻辑。
+
+### client<->peer a
+
+那同样的在一个 NAT 之后的一个 Peer A也是可以通讯的，那么在通讯之前它首先要穿越NAT，在NAT上形成一个映射的IP地址也就是192.0.2.150端口是32102，所以对TURN Server来说它可以识别这个IP地址和端口就是这个地址，那如果与Peer A进行通讯的时候，它就通过50000这个端口向这个32102端口发送消息，那么Peer A就收到了。
+
+相反的如果Peer A要给这个TURN Client端发送数据的时候，它就是往192.0.2.15:50000这个端口发数据，从这个端口又转到3478这个端口，最终传给TURN Client端。
+
+
+
+https://blog.51cto.com/u_15127686/4741868
 
 ## SDP
 
