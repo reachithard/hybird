@@ -109,8 +109,6 @@ C无法和A进行通信，因为A从来没有和C通信过，NAT会拒绝C试图
 
 ## TURN
 
-https://www.cnblogs.com/cnhk19/p/14295201.html
-
 ```
                                        Peer A  
                                        Server-Reflexive    +---------+  
@@ -166,29 +164,137 @@ client使用TURN命令进行创建和管理一个名为ALLOCATION的资源在TUR
 
 client可以同事拥有多个allocation在服务端。
 
-整理实际应用中Turn协议的工作主要有四个阶段：绑定（binding）、分配（Allocation）、转发（Relay）和信道（Channel）
+整理实际应用中Turn协议的工作主要有四个阶段：绑定（binding[stun]）、分配（Allocation）、转发（Relay）和信道（Channel）
 
-### client<->peer b
+### Allocation
+
+```
+TURN                                 TURN           Peer          Peer  
+  client                               server          A             B  
+    |-- Allocate request --------------->|             |             |  
+    |                                    |             |             |  
+    |<--------------- Allocate failure --|             |             |  
+    |                 (401 Unauthorized) |             |             |  
+    |                                    |             |             |  
+    |-- Allocate request --------------->|             |             |  
+    |                                    |             |             |  
+    |<---------- Allocate success resp --|             |             |  
+    |            (192.0.2.15:50000)      |             |             |  
+    //                                   //            //            //  
+    |                                    |             |             |  
+    |-- Refresh request ---------------->|             |             |  
+    |                                    |             |             |  
+    |<----------- Refresh success resp --|             |             |  
+    |                                    |             |             |  
+```
+
+client使用allocate事务创建一个server端的allocation。client发送一个Allocate请求到server端，server回应allocation创建成功的相应给client，
+并且携带相应的relayed transport address。client可以在Allocate请求中携带所期望的属性（例如：allocation的存活周期等）。
+如果数据有安全的考虑，server必须要求client进行认证授权，通常使用STUN协议定义的long-term认证方式。
+
+一旦relay transport address被创建，client必须保持它存活。那么client需要主动发起Refresh请求给server进行刷新。
+TURN新定义Refresh方法而不复用Allocate方法进行刷新是为了明确Allocatoin失效是由于某些的原因。
+
+Refresh事务的频率由allocation存活时间决定，allocation默认存活时长是10分钟--设置这么长的时间是为了减轻client段刷新的负担。
+并且当client意外退出是allocation能及时的失效。然而，client可以在Allocation请求设置一个长时间的存活时间，或者在Refresh请求修改这个一时间。
+server总是在Allocate或Refresh回应消息中携带一个真实的存活时间。如果client相应释放这个allocation，可以在Refresh请求中将存活时间设置为0,
+server端就会删除这个allocation。
+
+server和client都保存一个5元组。client端,5元组包括client's host transport address,server transport address，传输协议。
+server端，5元组和client类似，唯一不同的是server使用的server-reflexive transport address，而不是client's host transport address。
+
+在Allocate请求时server和client能够保存5元组。在随后的消息中都会使用到5元组。这样client和server都知道哪些allocation。
+如果client相应申请一个新的allocation，则必须使用不同的5元组（比如client;t host transport address是不同的）
+
+client没有携带鉴权信息发送Allocate请求给server。但server要求所有请求必须使用STUN的long-term授权机制时，
+server会返回401错误，要求重新鉴权。client第二次携带鉴权信息重新发送Allocation请求，server回复allocation创建成功，并且
+携带relayed transport address。稍后client发起Refresh请求给server,server回应Refresh请求成功。
+
+### Relay
+
+#### client<->peer b
 
 首先一个TURN Client端是在一个NAT之后的，这个时候TURN Client端它要发送一个请求给这个TURN Server，那么TURN Server是在另外一个网络地址，端口是3487，  TURN Client在向TURN Server发送请求的时候会形成一组映射地址(出口)地址. 此时TURN Client发送一个Arrow的请求到TURN 服务端，TURN Server收到请求之后就会另外开通一个  服务地址 192.0.2.15的地址端口是50000来提供这种UDP中转的这种服务，  所以TURN Server对同一个TURN Client端来说有两个端口，一个是与TURN Client端连接的端口，另外一个是提供中转的端口50000，  如果它现在与Peer B进行通讯，Peer B与TURN Server是在同一个网段，地址是192.0.2.210端口是49191，这个时候它就可以向中转的TURN Server中转的去发数据了。  同样的他们建立连接之后 ，TURN  Server也可以给这个Peer B发送数据，那这个时候Peer B如果发送数据到 50000这个端口，在TURN server的内部就会转到3478然后最终中继给这个TURN Client端；  同样的如果TURN Client端想给Peer B发送消息的时候，它是先发到3478端口，然后经过内部的中转转成UDP然后再给Peer B，这就是它的一个逻辑。
 
-### client<->peer a
+#### client<->peer a
 
 那同样的在一个 NAT 之后的一个 Peer A也是可以通讯的，那么在通讯之前它首先要穿越NAT，在NAT上形成一个映射的IP地址也就是192.0.2.150端口是32102，所以对TURN Server来说它可以识别这个IP地址和端口就是这个地址，那如果与Peer A进行通讯的时候，它就通过50000这个端口向这个32102端口发送消息，那么Peer A就收到了。
 
 相反的如果Peer A要给这个TURN Client端发送数据的时候，它就是往192.0.2.15:50000这个端口发数据，从这个端口又转到3478这个端口，最终传给TURN Client端。
 
+### 传输
 
+这里有两种使用TURN服务让client与其peers进行交换数据的方式。第一种是使用Send和Data方法，第二种是使用通道。
 
-https://blog.51cto.com/u_15127686/4741868
+#### send和data
 
-## SDP
+```
+URN                                 TURN           Peer          Peer  
+  client                               server          A             B  
+    |                                    |             |             |  
+    |-- CreatePermission req (Peer A) -->|             |             |  
+    |<-- CreatePermission success resp --|             |             |  
+    |                                    |             |             |  
+    |--- Send ind (Peer A)-------------->|             |             |  
+    |                                    |=== data ===>|             |  
+    |                                    |             |             |  
+    |                                    |<== data ====|             |  
+    |<-------------- Data ind (Peer A) --|             |             |  
+    |                                    |             |             |  
+    |                                    |             |             |  
+    |--- Send ind (Peer B)-------------->|             |             |  
+    |                                    | dropped     |             |  
+    |                                    |             |             |  
+    |                                    |<== data ==================|  
+    |                            dropped |             |             |  
+    |                                    |             |             |
+```
 
-https://blog.csdn.net/anyRTC/article/details/132364882
+client通过Send方法发送应用数据给server，而server使用Data方法发送数据给client。
+使用这种发送机制时，client发送Send信令给server时需要包含XOR_PEER_ADDRESS属性，并且填写peer的NAT外地址（server-reflexiv）,而不是peer的主机地址。
+使用DATA属性包含应用数据。server收到Send信令提取DATA数据并用中继地址作为源地址向peer发送UDP报文。
+注意这里无需指定中继地址，因为Send信令已经隐含了5元组。
+
+反向而言，当server的中继地址收到UDP报文，将其转化为Data信令发送给client，XOR_PEER_ADDRESS属性携带peer的NAT外地址，data包含在DATAT属性中。
+因为中继地址是allocation的唯一标示，所有通过中继地址能够确定哪个client需要接收该数据。
+
+#### channels
+
+```
+ client                               server          A             B  
+    |                                    |             |             |  
+    |-- ChannelBind req ---------------->|             |             |  
+    | (Peer A to 0x4001)                 |             |             |  
+    |                                    |             |             |  
+    |<---------- ChannelBind succ resp --|             |             |  
+    |                                    |             |             |  
+    |-- [0x4001] data ------------------>|             |             |  
+    |                                    |=== data ===>|             |  
+    |                                    |             |             |  
+    |                                    |<== data ====|             |  
+    |<------------------ [0x4001] data --|             |             |  
+    |                                    |             |             |  
+    |--- Send ind (Peer A)-------------->|             |             |  
+    |                                    |=== data ===>|             |  
+    |                                    |             |             |  
+    |                                    |<== data ====|             |  
+    |<------------------ [0x4001] data --|             |             |  
+    |                                    |             |             |  
+```
+
+某些应用场景下（例如VoIP),使用Send或Data信令需要36字节的负担，这样大大增加了client到server间的带宽。为解决这个问题，
+client利用server发送指定peers通讯方式有另一种选择。
+
+这种方式是利用一种名为ChannelData的另一种消息格式。ChannelData消息不同与之前的消息格式，它不是使用STUN格式的消息。
+而是使用4自己的头部用于标示一个通道ID，每一个通道ID都对应指定的peer，可以使用peer host transport address对应。
+
+为了将peer绑定为一个通道，client需要向server发送ChannelBind请求，并且包含通道ID和对端地址信息。一旦通道绑定成功，
+client可以使用ChannelData消息向peer传送数据。同样server的中继地址收到peer消息后也会转换为ChannelData消息发送给client。
+
+通道绑定存活时间为10分钟长于许可的存活时间5分钟，通道绑定刷新请求需要重新发送ChannelBind请求。类似于许可，通道绑定也无法
+显示取消绑定，只能等待通道绑定超时失效。
 
 ## ICE
-
-https://blog.csdn.net/chen_jianjian/article/details/128291645
 
 ICE的全称Interactive Connectivity Establishment（互动式连接建立），由IETF的MMUSIC工作组开发出来的，它所提供的是一种框架，使各种NAT穿透技术可以实现统一。ICE跟STUN和TURN不一样，ICE不是一种协议，而是一个框架（Framework），它整合了STUN和TURN。
 
