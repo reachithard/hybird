@@ -111,6 +111,41 @@ C无法和A进行通信，因为A从来没有和C通信过，NAT会拒绝C试图
 
 https://www.cnblogs.com/cnhk19/p/14295201.html
 
+```
+                                       Peer A  
+                                       Server-Reflexive    +---------+  
+                                       Transport Address   |         |  
+                                       192.0.2.150:32102   |         |  
+                                           |              /|         |  
+                         TURN              |            / ^|  Peer A |  
+   Client's              Server            |           /  ||         |  
+   Host Transport        Transport         |         //   ||         |  
+   Address               Address           |       //     |+---------+  
+  10.1.1.2:49721       192.0.2.15:3478     |+-+  //     Peer A  
+           |               |               ||N| /       Host Transport  
+           |   +-+         |               ||A|/        Address  
+           |   | |         |               v|T|     192.168.100.2:49582  
+           |   | |         |               /+-+  
++---------+|   | |         |+---------+   /              +---------+  
+|         ||   |N|         ||         | //               |         |  
+| TURN    |v   | |         v| TURN    |/                 |         |  
+| Client  |----|A|----------| Server  |------------------|  Peer B |  
+|         |    | |^         |         |^                ^|         |  
+|         |    |T||         |         ||                ||         |  
++---------+    | ||         +---------+|                |+---------+  
+               | ||                    |                |  
+               | ||                    |                |  
+               +-+|                    |                |  
+                  |                    |                |  
+                  |                    |                |  
+            Client's                   |            Peer B  
+            Server-Reflexive    Relayed             Transport  
+            Transport Address   Transport Address   Address  
+            192.0.2.1:7000      192.0.2.15:50000     192.0.2.210:49191  
+```
+
+
+
 ## SDP
 
 https://blog.csdn.net/anyRTC/article/details/132364882
@@ -118,6 +153,8 @@ https://blog.csdn.net/anyRTC/article/details/132364882
 ## ICE
 
 https://blog.csdn.net/chen_jianjian/article/details/128291645
+
+ICE的全称Interactive Connectivity Establishment（互动式连接建立），由IETF的MMUSIC工作组开发出来的，它所提供的是一种框架，使各种NAT穿透技术可以实现统一。ICE跟STUN和TURN不一样，ICE不是一种协议，而是一个框架（Framework），它整合了STUN和TURN。
 
 ## DTLS
 
