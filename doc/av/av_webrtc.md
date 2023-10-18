@@ -304,6 +304,8 @@ ICE的全称Interactive Connectivity Establishment（互动式连接建立），
 
 ## QOS
 
+https://blog.csdn.net/CrystalShaw/article/details/80432267
+
 ### FEC
 
 ### NACK
