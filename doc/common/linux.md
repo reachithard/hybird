@@ -12,3 +12,23 @@ Main Memory: 主存，是cpu和硬盘的中转站
 
 远端存储：存储在其他计算机
 
+cpu总线，pci，isa总线，南桥，北桥
+
+## CPU访存
+
+物理cache
+
+逻辑cache
+
+### TLB歧义问题
+
+## Cache写回
+
+数据回写
+
+写通过
+
+预取
+
+MESI协议
+
