@@ -66,3 +66,7 @@ MESI协议通过这四个状态来保证缓存的一致性，当一个处理器�
 
 ## 内存序问题
 
+sequence before
+
+happen before
+
