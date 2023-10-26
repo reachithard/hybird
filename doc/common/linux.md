@@ -85,5 +85,91 @@ MESI协议通过这四个状态来保证缓存的一致性，当一个处理器�
 
 不同线程间，对于同一个原子操作，需要同步关系，store操作一定要先于 load，也就是说 对于一个原子变量x，先写x，然后读x是一个同步的操作，读x并不会读取之前的值，而是写x后的值。
 
+### memory order
+
+**memory_order_relaxed**
+
+不对执行顺序做保证，没有happens-before的约束，编译器和处理器可以对memory access做任何的reorder，这种模式下能做的唯一保证，就是一旦线程读到了变量var的最新值，那么这个线程将再也见不到var修改之前的值了。
+
+**memory_order_acquire 和memory_order_release**
+
+memory_order_acquire保证本线程中,所有后续的读操作必须在本条原子操作完成后执行。memory_order_release保证本线程中,所有之前的写操作完成后才能执行本条原子操作。
+acquire/release与顺序一致性内存序相比是更宽松的内存序模型，其不具有全局序，性能更高。核心是：同一个原子变量的release操作同步于一个acquire操作.。
+通常的做法是：将资源通过store+memory_order_release的方式”Release”给别的线程；别的线程则通过load+memory_order_acquire判断或者等待某个资源，一旦满足某个条件后就可以安全的“Acquire”消费这些资源了。即释放获得顺序。
+
+**memory_order_consume**
+
+这个内存屏障与memory_order_acquire的功能相似，而且大多数编译器并没有实现这个屏障，而且正在修订中，暂时不鼓励使用 memory_order_consume 。
+std::memory_order_consume具有弱的同步和内存序限制，即不会像std::memory_order_release产生同步与关系。
+目前一般编译器的行为是类似memory_order_acquire 的。
+
+**memory_order_acq_rel**
+
+双向读写内存屏障，相当于结合了memory_order_release、memory_order_acquire。可以看见其他线程施加 release 语义的所有写入，同时自己的 release 结束后所有写入对其他施加 acquire 语义的线程可见
+表示线程中此屏障之前的的读写指令不能重排到屏障之后，屏障之后的读写指令也不能重排到屏障之前。此时需要不同线程都是用同一个原子变量，且都是用memory_order_acq_rel
+
+**memory_order_seq_cst**
+
+通常情况下，默认使用 memory_order_seq_cst
+如果是读取就是 acquire 语义，如果是写入就是 release 语义，如果是读取+写入就是 acquire-release 语义
+同时会对所有使用此 memory order 的原子操作进行同步，所有线程看到的内存操作的顺序都是一样的，就像单个线程在执行所有线程的指令一样。
+
+## c++内存模型
+
+**Sequential Consistency**
+
+**Relax**
+
+**Acquire-Release**
+
+## C++程序
+
+代码段
+
+数据段
+
+Bss段
+
+堆
+
+栈
+
+虚拟地址
+
+虚拟内存
+
+虚拟内存实现
+
+虚拟存储器
+
+页面置换算法
+
+Lunix的buddy的slab算法
+
+malloc实现：brk和mmap
+
+## 进程
+
+进程状态
+
+僵尸进程
+
+孤儿进程
+
+进程间通信
+
+进程同步方式
+
+死锁及其形成
+
+进程调度算法
+
+fork vfork clone
+
+## 线程
 
 
+
+## 协程
+
+协程调度
