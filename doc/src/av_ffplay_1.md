@@ -29,10 +29,43 @@ git clone git@github.com:FFmpeg/FFmpeg.git
 
 5.将字幕，PCM，YUV数据进行播放。
 
-## ffplay.c研究
+## ffplay研究
+
+### Packet Queue
+
+如上图，Packet Queue主要是存储媒体文件解复用后的AVPacket。
 
 ```
+struct AVFifo {
+    uint8_t *buffer;
+
+    size_t elem_size, nb_elems;
+    size_t offset_r, offset_w;
+    // distinguishes the ambiguous situation offset_r == offset_w
+    int    is_empty;
+
+    unsigned int flags;
+    size_t       auto_grow_limit;
+};
+
+typedef struct MyAVPacketList {
+    AVPacket *pkt;
+    int serial;
+} MyAVPacketList;
+
+typedef struct PacketQueue {
+    AVFifo *pkt_list; // ffmpeg实现的FIFO缓冲区 实际存储的是MyAVPacketList节点
+    int nb_packets; // 当前队列中avpcket的数量
+    int size; // 队列中所有数据的总字节数
+    int64_t duration; // 队列所有的时长之和
+    int abort_request; // 是否终止对队列的操作，用于安全快速的退出
+    int serial; // 序列号
+    SDL_mutex *mutex; // 线程安全锁
+    SDL_cond *cond; // 线程同步
+} PacketQueue;
 ```
+
+PacketQueue是一个线程安全FIFO队列，数据节点是MyAVPacketList，内部使用AVFifo实现数据的存取，abort_request控制队列的状态，muxte,cond进行同步和临界区保护。
 
 
 
