@@ -15,7 +15,45 @@ make
 
 ## 目录结构
 
+```
+.
+├── Changelog
+├── compat
+├── config_components.h
+├── config.h
+├── configure
+├── CONTRIBUTING.md
+├── COPYING.GPLv2
+├── COPYING.GPLv3
+├── COPYING.LGPLv2.1
+├── COPYING.LGPLv3
+├── CREDITS
+├── doc
+├── ffbuild
+├── ffmpeg
+├── ffmpeg_g
+├── ffprobe
+├── ffprobe_g
+├── fftools
+├── INSTALL.md
+├── libavcodec
+├── libavdevice
+├── libavfilter
+├── libavformat
+├── libavutil
+├── libpostproc
+├── libswresample
+├── libswscale
+├── LICENSE.md
+├── MAINTAINERS
+├── Makefile
+├── presets
+├── README.md
+├── RELEASE
+├── tests
+└── tools
 
+```
 
 ## 播放器原理
 
@@ -268,7 +306,66 @@ typedef struct Clock {
 } Clock;
 ```
 
+如下是Clock的一些接口以及实现
 
+```
+// 获取当前的时间，如果暂停状态则返回的是pts，播放状态则返回的是pts_drift + time - (time - last_updated) * (1 - speed)(time是系统时间)；c->pts_drift = c->pts - time;
+static double get_clock(Clock *c)
+{
+    if (*c->queue_serial != c->serial)
+        return NAN;
+    if (c->paused) {
+        return c->pts;
+    } else {
+        double time = av_gettime_relative() / 1000000.0;
+        return c->pts_drift + time - (time - c->last_updated) * (1.0 - c->speed);
+    }
+}
+
+// 设置参数
+static void set_clock_at(Clock *c, double pts, int serial, double time)
+{
+    c->pts = pts;
+    c->last_updated = time;
+    c->pts_drift = c->pts - time;
+    c->serial = serial;
+}
+
+// 设置参数
+static void set_clock(Clock *c, double pts, int serial)
+{
+    double time = av_gettime_relative() / 1000000.0;
+    set_clock_at(c, pts, serial, time);
+}
+
+// 设置speed
+static void set_clock_speed(Clock *c, double speed)
+{
+    set_clock(c, get_clock(c), c->serial);
+    c->speed = speed;
+}
+
+// 初始化时钟
+static void init_clock(Clock *c, int *queue_serial)
+{
+    c->speed = 1.0;
+    c->paused = 0;
+    c->queue_serial = queue_serial;
+    set_clock(c, NAN, -1);
+}
+
+// 将同步的主时钟同步到slave时钟上
+static void sync_clock_to_slave(Clock *c, Clock *slave)
+{
+    double clock = get_clock(c);
+    double slave_clock = get_clock(slave);
+    if (!isnan(slave_clock) && (isnan(clock) || fabs(clock - slave_clock) > AV_NOSYNC_THRESHOLD))
+        set_clock(c, slave_clock, slave->serial);
+}
+
+```
+
+如上，上诉是学习ffplay需要知道的一些东西，后续将深入源码进行分析ffplay的实现。
 
 
 
