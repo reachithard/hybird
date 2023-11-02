@@ -131,7 +131,7 @@ static int read_thread(void *arg)
     is->realtime = is_realtime(ic);
 
     if (show_status)
-        av_dump_format(ic, 0, is->filename, 0);
+        av_dump_format(ic, 0, is->filename, 0); // 进行打印
 
     for (i = 0; i < ic->nb_streams; i++) {
         AVStream *st = ic->streams[i];
@@ -148,6 +148,7 @@ static int read_thread(void *arg)
         }
     }
 
+	// stream index的设置，和音频视频相关
     if (!video_disable)
         st_index[AVMEDIA_TYPE_VIDEO] =
             av_find_best_stream(ic, AVMEDIA_TYPE_VIDEO,
@@ -167,6 +168,7 @@ static int read_thread(void *arg)
                                  st_index[AVMEDIA_TYPE_VIDEO]),
                                 NULL, 0);
 
+	// 显示模式设置 以及设置window的大小
     is->show_mode = show_mode;
     if (st_index[AVMEDIA_TYPE_VIDEO] >= 0) {
         AVStream *st = ic->streams[st_index[AVMEDIA_TYPE_VIDEO]];
@@ -177,6 +179,7 @@ static int read_thread(void *arg)
     }
 
     /* open the streams */
+    // 打开流 audio thread,video thread,subtitle thread
     if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
         stream_component_open(is, st_index[AVMEDIA_TYPE_AUDIO]);
     }
@@ -199,12 +202,17 @@ static int read_thread(void *arg)
         goto fail;
     }
 
+	// 进行判断
     if (infinite_buffer < 0 && is->realtime)
         infinite_buffer = 1;
 
+	// 这里既是读取文件 读取AVPacket，然后根据类型塞入AVPacket queue，
     for (;;) {
+    	// 如果有退出 则进行推迟
         if (is->abort_request)
             break;
+            
+        // 暂停还是播放
         if (is->paused != is->last_paused) {
             is->last_paused = is->paused;
             if (is->paused)
@@ -212,6 +220,8 @@ static int read_thread(void *arg)
             else
                 av_read_play(ic);
         }
+        
+        // rtsp流处理
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
                 (!strcmp(ic->iformat->name, "rtsp") ||
@@ -222,6 +232,8 @@ static int read_thread(void *arg)
             continue;
         }
 #endif
+
+		// 是否有seek操作 如果有seek操作，则进行AVPacket Queue清除 以及时钟设置等操作
         if (is->seek_req) {
             int64_t seek_target = is->seek_pos;
             int64_t seek_min    = is->seek_rel > 0 ? seek_target - is->seek_rel + 2: INT64_MIN;
@@ -247,11 +259,13 @@ static int read_thread(void *arg)
                 }
             }
             is->seek_req = 0;
-            is->queue_attachments_req = 1;
+            is->queue_attachments_req = 1; // 这里会attached_pic塞入队列
             is->eof = 0;
             if (is->paused)
                 step_to_next_frame(is);
         }
+        
+        // 这里会attached_pic塞入队列
         if (is->queue_attachments_req) {
             if (is->video_st && is->video_st->disposition & AV_DISPOSITION_ATTACHED_PIC) {
                 if ((ret = av_packet_ref(pkt, &is->video_st->attached_pic)) < 0)
@@ -263,6 +277,7 @@ static int read_thread(void *arg)
         }
 
         /* if the queue are full, no need to read more */
+        // 如果不是无限buffer并且有队列满了 进行超时等待
         if (infinite_buffer<1 &&
               (is->audioq.size + is->videoq.size + is->subtitleq.size > MAX_QUEUE_SIZE
             || (stream_has_enough_packets(is->audio_st, is->audio_stream, &is->audioq) &&
@@ -274,6 +289,8 @@ static int read_thread(void *arg)
             SDL_UnlockMutex(wait_mutex);
             continue;
         }
+        
+        // 重播
         if (!is->paused &&
             (!is->audio_st || (is->auddec.finished == is->audioq.serial && frame_queue_nb_remaining(&is->sampq) == 0)) &&
             (!is->video_st || (is->viddec.finished == is->videoq.serial && frame_queue_nb_remaining(&is->pictq) == 0))) {
@@ -284,8 +301,10 @@ static int read_thread(void *arg)
                 goto fail;
             }
         }
+        
+        // 以下就是读取媒体文件，读取出AVPacket 然后塞入队列
         ret = av_read_frame(ic, pkt);
-        if (ret < 0) {
+        if (ret < 0) { // 读取有问题，比如读取完了，则塞入空，或者读取有问题，直接退出
             if ((ret == AVERROR_EOF || avio_feof(ic->pb)) && !is->eof) {
                 if (is->video_stream >= 0)
                     packet_queue_put_nullpacket(&is->videoq, pkt, is->video_stream);
@@ -301,14 +320,17 @@ static int read_thread(void *arg)
                 else
                     break;
             }
+            
+            // 超时
             SDL_LockMutex(wait_mutex);
             SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
             SDL_UnlockMutex(wait_mutex);
             continue;
         } else {
-            is->eof = 0;
+            is->eof = 0;  // 状态设置
         }
         /* check if packet is in play range specified by user, then queue, otherwise discard */
+        // 读取packet是否在播放区间，如果是则入队，否则进行抛弃
         stream_start_time = ic->streams[pkt->stream_index]->start_time;
         pkt_ts = pkt->pts == AV_NOPTS_VALUE ? pkt->dts : pkt->pts;
         pkt_in_play_range = duration == AV_NOPTS_VALUE ||
@@ -316,6 +338,7 @@ static int read_thread(void *arg)
                 av_q2d(ic->streams[pkt->stream_index]->time_base) -
                 (double)(start_time != AV_NOPTS_VALUE ? start_time : 0) / 1000000
                 <= ((double)duration / 1000000);
+        // 根据AVPacket类型进行入队
         if (pkt->stream_index == is->audio_stream && pkt_in_play_range) {
             packet_queue_put(&is->audioq, pkt);
         } else if (pkt->stream_index == is->video_stream && pkt_in_play_range
