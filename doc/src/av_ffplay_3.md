@@ -8,7 +8,7 @@
 
 ### read_thread
 
-下面将放出整体代码，之后进行拆解分析。
+下面将放出整体代码
 
 ```
 static int read_thread(void *arg)
@@ -368,4 +368,35 @@ static int read_thread(void *arg)
     return 0;
 }
 ```
+
+如下，read_thread的主要流程为, 当然实际代码还有对用户请求，以及buffer满等状态的处理
+
+```
+
+//去除一些细节的主流程
+avfomat_alloc_context();
+avformat_open_input();
+av_dict_set();
+avformat_find_stream_info();
+avformat_seek_file();
+//for search
+//得到音频、字幕、视频的索引
+av_find_best_stream();
+//打开音频、视频、字幕的解码线程
+stream_component_open();
+for(;;){
+    av_read_frame();
+    if(isseek){
+        avformat_seek_file();
+    }
+    packet_queue_put();
+}
+```
+
+read_thread是ffplay的解复用线程，其基本流程很简单就是我们使用ffmpeg时解复用的基本流程：打开媒体文件AVFormatContext→设置AVFormatContext解复用的参数→查找媒体文件中的媒体流（音频、视频和字幕）→寻找每个流对应的流的索引→打开音频、视频和字幕流对应的解码线程→然后便是循环利用av_read_frame解复用读取AVPacket。
+在搜索媒体流对应的流时，首先通过for循环AVFormatContext中的所有流找到对应的流的第一个流的索引，然后使用av_find_best_stream确定最终的流的索引。av_find_best_stream中的实现也是通过遍历媒体中的流寻找对应的流的索引，ffplay实现中第一次手动搜寻是期望期望一个参考索引，然后将该参考索引传递给av_find_best_stream寻找最佳的流。ffmpeg中最佳流是根据各种启发式确定的最有可能是用户期望的，并尝试找到对应的流的最佳的解码器，一般都会返回用户指定的流的索引。
+
+解复用线程主循环主要就是读取一帧的处理seek事件将一帧的packet入队。seek的基本逻辑是如果当前状态是播放状态就正常seek然后清空队列，如果是暂停状态seek完不仅仅要清空队列还会显示刷新一帧的画面（具体的步骤是先恢复播放状态播放一帧再暂停），同步外部时钟，不然seek完画面还是seek前的画面。在解复用时会控制队列的大小，如果队列已经full则会阻塞10ms。在解复用入队是会计算当前packet的时间是否在播放范围内，如果不在则跳过。在read_thread主循环中会控制seek，退出、循环播放逻辑。
+
+其中开启decode线程是在stream_component_open函数里面，之后我们会分析stream_component_open函数。
 
