@@ -1,4 +1,4 @@
-# ffplay源码研究一
+# ffplay源码研究一（原理及数据结构）
 
 本文针对的是`ffmpeg-release-6.1`源码进行研究。
 

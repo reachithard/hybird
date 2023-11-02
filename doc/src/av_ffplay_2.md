@@ -1,4 +1,4 @@
-# ffplay源码研究二
+# ffplay源码研究二（初始化及stream_open)
 
 ## ffplay整体流程图
 
