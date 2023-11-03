@@ -47,6 +47,8 @@ static int stream_component_open(VideoState *is, int stream_index)
         case AVMEDIA_TYPE_SUBTITLE: is->last_subtitle_stream = stream_index; forced_codec_name = subtitle_codec_name; break;
         case AVMEDIA_TYPE_VIDEO   : is->last_video_stream    = stream_index; forced_codec_name =    video_codec_name; break;
     }
+    
+    // 如果有forced_codec_name 则进行名字查找
     if (forced_codec_name)
         codec = avcodec_find_decoder_by_name(forced_codec_name);
     if (!codec) {
@@ -58,7 +60,7 @@ static int stream_component_open(VideoState *is, int stream_index)
         goto fail;
     }
 
-    avctx->codec_id = codec->id;
+    avctx->codec_id = codec->id; // codec_id查找
     if (stream_lowres > codec->max_lowres) {
         av_log(avctx, AV_LOG_WARNING, "The maximum value for lowres supported by the decoder is %d\n",
                 codec->max_lowres);
@@ -68,7 +70,7 @@ static int stream_component_open(VideoState *is, int stream_index)
 
     if (fast)
         avctx->flags2 |= AV_CODEC_FLAG2_FAST;
-
+	// 进行codec的选项过滤
     ret = filter_codec_opts(codec_opts, avctx->codec_id, ic,
                             ic->streams[stream_index], codec, &opts);
     if (ret < 0)
@@ -81,6 +83,7 @@ static int stream_component_open(VideoState *is, int stream_index)
 
     av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);
 
+	// codec打开
     if ((ret = avcodec_open2(avctx, codec, &opts)) < 0) {
         goto fail;
     }
@@ -90,10 +93,10 @@ static int stream_component_open(VideoState *is, int stream_index)
         goto fail;
     }
 
-    is->eof = 0;
+    is->eof = 0; // eof设置为0
     ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
     switch (avctx->codec_type) {
-    case AVMEDIA_TYPE_AUDIO:
+    case AVMEDIA_TYPE_AUDIO: // 音频流处理
         {
             AVFilterContext *sink;
 
@@ -139,7 +142,7 @@ static int stream_component_open(VideoState *is, int stream_index)
             goto out;
         SDL_PauseAudioDevice(audio_dev, 0);
         break;
-    case AVMEDIA_TYPE_VIDEO:
+    case AVMEDIA_TYPE_VIDEO: // 视频流处理
         is->video_stream = stream_index;
         is->video_st = ic->streams[stream_index];
 
@@ -149,7 +152,7 @@ static int stream_component_open(VideoState *is, int stream_index)
             goto out;
         is->queue_attachments_req = 1;
         break;
-    case AVMEDIA_TYPE_SUBTITLE:
+    case AVMEDIA_TYPE_SUBTITLE: // 字幕流处理
         is->subtitle_stream = stream_index;
         is->subtitle_st = ic->streams[stream_index];
 
