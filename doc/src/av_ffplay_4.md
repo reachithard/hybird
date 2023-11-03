@@ -12,6 +12,7 @@
 
 ```
 /* open a given stream. Return 0 if OK */
+// stream_index为find_stream的音视频index
 static int stream_component_open(VideoState *is, int stream_index)
 {
     AVFormatContext *ic = is->ic;
@@ -25,20 +26,22 @@ static int stream_component_open(VideoState *is, int stream_index)
     int ret = 0;
     int stream_lowres = lowres;
 
-    if (stream_index < 0 || stream_index >= ic->nb_streams)
+    if (stream_index < 0 || stream_index >= ic->nb_streams) // 校验判断
         return -1;
 
-    avctx = avcodec_alloc_context3(NULL);
+    avctx = avcodec_alloc_context3(NULL); // 内存申请
     if (!avctx)
         return AVERROR(ENOMEM);
 
+	// 将avcodec 的codecpar设置
     ret = avcodec_parameters_to_context(avctx, ic->streams[stream_index]->codecpar);
     if (ret < 0)
         goto fail;
-    avctx->pkt_timebase = ic->streams[stream_index]->time_base;
+    avctx->pkt_timebase = ic->streams[stream_index]->time_base; // 设置time base
 
-    codec = avcodec_find_decoder(avctx->codec_id);
+    codec = avcodec_find_decoder(avctx->codec_id); // 根据codec_id查找codec
 
+	// 设置last_xxx_stream 以及设置forced_codec_name
     switch(avctx->codec_type){
         case AVMEDIA_TYPE_AUDIO   : is->last_audio_stream    = stream_index; forced_codec_name =    audio_codec_name; break;
         case AVMEDIA_TYPE_SUBTITLE: is->last_subtitle_stream = stream_index; forced_codec_name = subtitle_codec_name; break;
