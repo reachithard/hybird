@@ -200,11 +200,14 @@ decoder_init();
 decoder_start();
 ```
 
+
+
 ### audio_thread
 
 ```
 static int audio_thread(void *arg)
 {
+	// 参数初始化
     VideoState *is = arg;
     AVFrame *frame = av_frame_alloc();
     Frame *af;
@@ -218,9 +221,11 @@ static int audio_thread(void *arg)
         return AVERROR(ENOMEM);
 
     do {
+    	// 从AVPacket进行decode 获取Frame
         if ((got_frame = decoder_decode_frame(&is->auddec, frame, NULL)) < 0)
             goto the_end;
 
+		// 获取到frame 判断是否需要进行重新配置过滤
         if (got_frame) {
                 tb = (AVRational){1, frame->sample_rate};
 
@@ -247,26 +252,28 @@ static int audio_thread(void *arg)
                     is->audio_filter_src.freq           = frame->sample_rate;
                     last_serial                         = is->auddec.pkt_serial;
 
-                    if ((ret = configure_audio_filters(is, afilters, 1)) < 0)
+                    if ((ret = configure_audio_filters(is,  afilters, 1)) < 0)
                         goto the_end;
                 }
 
+			// 滤镜相关
             if ((ret = av_buffersrc_add_frame(is->in_audio_filter, frame)) < 0)
                 goto the_end;
 
+			// 滤镜相关
             while ((ret = av_buffersink_get_frame_flags(is->out_audio_filter, frame, 0)) >= 0) {
                 FrameData *fd = frame->opaque_ref ? (FrameData*)frame->opaque_ref->data : NULL;
-                tb = av_buffersink_get_time_base(is->out_audio_filter);
-                if (!(af = frame_queue_peek_writable(&is->sampq)))
+                tb = av_buffersink_get_time_base(is->out_audio_filter); // 获取
+                if (!(af = frame_queue_peek_writable(&is->sampq))) // 获取一个可写入的环形队列节点af
                     goto the_end;
-
+				// 记录值
                 af->pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
                 af->pos = fd ? fd->pkt_pos : -1;
                 af->serial = is->auddec.pkt_serial;
                 af->duration = av_q2d((AVRational){frame->nb_samples, frame->sample_rate});
 
                 av_frame_move_ref(af->frame, frame);
-                frame_queue_push(&is->sampq);
+                frame_queue_push(&is->sampq); // frame进行入队 环形队列
 
                 if (is->audioq.serial != is->auddec.pkt_serial)
                     break;
