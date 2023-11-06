@@ -71,7 +71,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 
 对于audio_open是设置一些参数，比如支持一些什么格式的音视频，以及设置回调函数sdl_audio_callback。供sdl进行回调。sdl_audio_callback会记录回调时间，进行音视频时钟的同步，主要是从环形队列sampq里面获取AVFrame，然后转成支持的格式Resample，以及音频的时钟同步丢帧之类的。然后拷贝进sdl_audio_callback的stream参数里面，供设备播放。
 
-video_refresh
+## video_refresh
 
 ```
 static void event_loop(VideoState *cur_stream)

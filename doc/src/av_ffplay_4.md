@@ -450,15 +450,19 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
     int ret = AVERROR(EAGAIN);
 
     for (;;) {
-        if (d->queue->serial == d->pkt_serial) {
+    	// d->queue->serial是在flush时会进行更新，而d->pkt_seial是在get时进行更新，即flush会开启
+    	// 新的序列
+        if (d->queue->serial == d->pkt_serial) { 
             do {
-                if (d->queue->abort_request)
+                if (d->queue->abort_request) // 退出
                     return -1;
 
                 switch (d->avctx->codec_type) {
                     case AVMEDIA_TYPE_VIDEO:
+                     	// 从codec接收AVFrame 使用 avcodec_send_packet发送codec需要的AVPacket
                         ret = avcodec_receive_frame(d->avctx, frame);
                         if (ret >= 0) {
+                        	// pts更新
                             if (decoder_reorder_pts == -1) {
                                 frame->pts = frame->best_effort_timestamp;
                             } else if (!decoder_reorder_pts) {
@@ -469,6 +473,7 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                     case AVMEDIA_TYPE_AUDIO:
                         ret = avcodec_receive_frame(d->avctx, frame);
                         if (ret >= 0) {
+                        	// pts更新
                             AVRational tb = (AVRational){1, frame->sample_rate};
                             if (frame->pts != AV_NOPTS_VALUE)
                                 frame->pts = av_rescale_q(frame->pts, d->avctx->pkt_timebase, tb);
@@ -481,9 +486,9 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                         }
                         break;
                 }
-                if (ret == AVERROR_EOF) {
+                if (ret == AVERROR_EOF) { // 失败处理
                     d->finished = d->pkt_serial;
-                    avcodec_flush_buffers(d->avctx);
+                    avcodec_flush_buffers(d->avctx); // flush codec的缓存
                     return 0;
                 }
                 if (ret >= 0)
@@ -493,12 +498,13 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
 
         do {
             if (d->queue->nb_packets == 0)
-                SDL_CondSignal(d->empty_queue_cond);
+                SDL_CondSignal(d->empty_queue_cond); // 进行等待
             if (d->packet_pending) {
                 d->packet_pending = 0;
             } else {
                 int old_serial = d->pkt_serial;
-                if (packet_queue_get(d->queue, d->pkt, 1, &d->pkt_serial) < 0)
+                // 获取AVpacket
+                if (packet_queue_get(d->queue, d->pkt, 1, &d->pkt_serial) < 0) 
                     return -1;
                 if (old_serial != d->pkt_serial) {
                     avcodec_flush_buffers(d->avctx);
@@ -507,14 +513,15 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                     d->next_pts_tb = d->start_pts_tb;
                 }
             }
-            if (d->queue->serial == d->pkt_serial)
+            // 这里退出该循环，即避免有flush avpacket queue情况
+            if (d->queue->serial == d->pkt_serial) 
                 break;
             av_packet_unref(d->pkt);
         } while (1);
 
         if (d->avctx->codec_type == AVMEDIA_TYPE_SUBTITLE) {
             int got_frame = 0;
-            ret = avcodec_decode_subtitle2(d->avctx, sub, &got_frame, d->pkt);
+            ret = avcodec_decode_subtitle2(d->avctx, sub, &got_frame, d->pkt); // subtitle的decode
             if (ret < 0) {
                 ret = AVERROR(EAGAIN);
             } else {
@@ -546,67 +553,4 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
 }
 ```
 
-### sdl_audio_callback(流程图右上角部分，在stream_component_open部分，对于音频有audio_open)
-
-```
-static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int wanted_sample_rate, struct AudioParams *audio_hw_params)
-{
-	... // 省略参数等设置
-    wanted_spec.callback = sdl_audio_callback; // 这里设置回调，由SDL触发
-    wanted_spec.userdata = opaque; // opaque即为VideoState
-    while (!(audio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE))) {
-        ... // 省略错误逻辑判断
-    }
-    ... // 省略参数等设置
-}
-```
-
-```
-/* prepare a new audio buffer */
-static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
-{
-    VideoState *is = opaque;
-    int audio_size, len1;
-
-    audio_callback_time = av_gettime_relative(); // 音视频同步用 时钟相关
-
-    while (len > 0) {
-        if (is->audio_buf_index >= is->audio_buf_size) { // 这个也是类似环形队列的
-           audio_size = audio_decode_frame(is); // 这个里面有进行resample， resample为支持格式。否则可能有杂音，以及有时钟同步synchronize_audio，主要是从音频环形队列sampq里面获取Frame
-           if (audio_size < 0) {
-                /* if error, just output silence */
-               is->audio_buf = NULL;
-               is->audio_buf_size = SDL_AUDIO_MIN_BUFFER_SIZE / is->audio_tgt.frame_size * is->audio_tgt.frame_size;
-           } else {
-               if (is->show_mode != SHOW_MODE_VIDEO)
-                   update_sample_display(is, (int16_t *)is->audio_buf, audio_size);
-               is->audio_buf_size = audio_size;
-           }
-           is->audio_buf_index = 0;
-        }
-        len1 = is->audio_buf_size - is->audio_buf_index;
-        if (len1 > len)
-            len1 = len;
-        if (!is->muted && is->audio_buf && is->audio_volume == SDL_MIX_MAXVOLUME)
-            memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
-        else {
-            memset(stream, 0, len1);
-            if (!is->muted && is->audio_buf)
-                SDL_MixAudioFormat(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, AUDIO_S16SYS, len1, is->audio_volume); // 拷贝进sdl里面
-        }
-        len -= len1;
-        stream += len1;
-        is->audio_buf_index += len1;
-    }
-    is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
-    /* Let's assume the audio driver that is used by SDL has two periods. */
-    
-    // 时钟同步
-    if (!isnan(is->audio_clock)) {
-        set_clock_at(&is->audclk, is->audio_clock - (double)(2 * is->audio_hw_buf_size + is->audio_write_buf_size) / is->audio_tgt.bytes_per_sec, is->audio_clock_serial, audio_callback_time / 1000000.0);
-        sync_clock_to_slave(&is->extclk, &is->audclk);
-    }
-}
-```
-
-对于audio_open是设置一些参数，比如支持一些什么格式的音视频，以及设置回调函数sdl_audio_callback。供sdl进行回调。sdl_audio_callback会记录回调时间，进行音视频时钟的同步，主要是从环形队列sampq里面获取AVFrame，然后转成支持的格式Resample，以及音频的时钟同步丢帧之类的。然后拷贝进sdl_audio_callback的stream参数里面，供设备播放。
+如上可见，该函数主要是进行avcodec_send_packet往codec发送AVPacket包，然后使用avcodec_receive_frame进行接收AVFrame，以及对pts的更新。当然还有对read_thread的等待，empty_queue_cond条件变量实现。以及如果出现flush，则会有pkt_serial的丢弃AVPacket的逻辑。
