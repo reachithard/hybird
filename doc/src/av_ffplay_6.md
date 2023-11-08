@@ -255,3 +255,4 @@ static int audio_decode_frame(VideoState *is)
 (3) 利⽤重采样库进行平滑地样本添加或剔除，在获知要调整的⽬标样本数 wanted_nb_samples 后，通过 swr_set_compensation 和 swr_convert 的函数组合完成重采样。
 
 ### 外部时钟为主时钟
+
