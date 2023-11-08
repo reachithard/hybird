@@ -113,7 +113,7 @@ static void video_refresh(void *opaque, double *remaining_time)
 
 如上，视频以音频时钟为准进行同步，如果视频播放过快，则重复播放上一帧，来等待音频；如果视频播放过慢，则丢帧，追赶音频。
 
-
+![](./res/ffplay/sync.png)
 
 rame_timer，可以理解为帧显示时刻，如更新前，是上 ⼀帧lastvp的显示时刻；对于更新后（ is->frame_timer += delay ），则为当前帧vp显示时刻，上⼀帧显示时刻加上delay（还应显示多久（含帧本身时⻓））即为上⼀帧应结束显示的时刻。
 
@@ -150,7 +150,7 @@ static double compute_target_delay(double delay, VideoState *is)
         }
     }
  
-    av_log(NULL, AV_LOG_TRACE, "video: delay=%0.3f A-V=%f\n",delay, -diff);
+    av_log(NULL, AV_LOG_TRACE, "video: delay=%0.3f A-V=%f/n",delay, -diff);
  
     return delay;
 }
@@ -191,7 +191,7 @@ static int audio_decode_frame(VideoState *is)
                                          0, NULL);
         if (!is->swr_ctx || swr_init(is->swr_ctx) < 0) {
             av_log(NULL, AV_LOG_ERROR,
-                   "Cannot create sample rate converter for conversion of %d Hz %s %d channels to %d Hz %s %d channels!\n",
+                   "Cannot create sample rate converter for conversion of %d Hz %s %d channels to %d Hz %s %d channels!/n",
                     af->frame->sample_rate, av_get_sample_fmt_name(af->frame->format), af->frame->channels,
                     is->audio_tgt.freq, av_get_sample_fmt_name(is->audio_tgt.fmt), is->audio_tgt.channels);
             swr_free(&is->swr_ctx);
@@ -211,13 +211,13 @@ static int audio_decode_frame(VideoState *is)
         int out_size  = av_samples_get_buffer_size(NULL, is->audio_tgt.channels, out_count, is->audio_tgt.fmt, 0);
         int len2;
         if (out_size < 0) {
-            av_log(NULL, AV_LOG_ERROR, "av_samples_get_buffer_size() failed\n");
+            av_log(NULL, AV_LOG_ERROR, "av_samples_get_buffer_size() failed/n");
             return -1;
         }
         if (wanted_nb_samples != af->frame->nb_samples) {
             if (swr_set_compensation(is->swr_ctx, (wanted_nb_samples - af->frame->nb_samples) * is->audio_tgt.freq / af->frame->sample_rate,
                                         wanted_nb_samples * is->audio_tgt.freq / af->frame->sample_rate) < 0) {
-                av_log(NULL, AV_LOG_ERROR, "swr_set_compensation() failed\n");
+                av_log(NULL, AV_LOG_ERROR, "swr_set_compensation() failed/n");
                 return -1;
             }
         }
@@ -227,11 +227,11 @@ static int audio_decode_frame(VideoState *is)
     //音频重采样：返回值是重采样后得到的音频数据中单个声道的样本数
         len2 = swr_convert(is->swr_ctx, out, out_count, in, af->frame->nb_samples);
         if (len2 < 0) {
-            av_log(NULL, AV_LOG_ERROR, "swr_convert() failed\n");
+            av_log(NULL, AV_LOG_ERROR, "swr_convert() failed/n");
             return -1;
         }
         if (len2 == out_count) {
-            av_log(NULL, AV_LOG_WARNING, "audio buffer is probably too small\n");
+            av_log(NULL, AV_LOG_WARNING, "audio buffer is probably too small/n");
             if (swr_init(is->swr_ctx) < 0)
                 swr_free(&is->swr_ctx);
         }

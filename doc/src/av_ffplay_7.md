@@ -2,3 +2,7 @@
 
 本节主要分析的是滤镜部分。
 
+```
+ffplay -i test.mp4 -vf transpose=1
+```
+
