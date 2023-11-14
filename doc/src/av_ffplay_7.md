@@ -240,3 +240,16 @@ fail:
 
 ```
 
+滤镜基本流程为
+
+```
+avfilter_graph_alloc()
+avfilter_graph_create_filter();
+avfilter_graph_parse_ptr(); [avfilter_link]
+avfilter_graph_config();
+av_buffersrc_add_frame(); // 往滤镜里面传数据
+av_buffersink_get_frame_flags(); // 从滤镜里面拿数据
+```
+
+其中重点函数为`avfilter_graph_parse_ptr`, `avfilter_graph_config`， `av_buffersrc_add_frame`和`av_buffersink_get_frame_flags`函数。
+
