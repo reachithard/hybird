@@ -13,3 +13,20 @@ git checkout 5.0release
 
 ## SRS初始化和配置
 
+```
+int main(int argc, char** argv, char** envp)
+{
+    srs_error_t err = do_main(argc, argv, envp); // 实际启动代码
+
+    if (err != srs_success) {
+        srs_error("Failed, %s", srs_error_desc(err).c_str());
+    }
+    
+    int ret = srs_error_code(err);
+    srs_freep(err);
+    return ret;
+}
+```
+
+
+
