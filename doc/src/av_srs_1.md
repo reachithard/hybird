@@ -28,5 +28,5 @@ int main(int argc, char** argv, char** envp)
 }
 ```
 
-
+如上，实际的启动代码为`do_main`
 
