@@ -30,3 +30,17 @@ int main(int argc, char** argv, char** envp)
 
 如上，实际的启动代码为`do_main`
 
+```
+srs_error_t do_main(int argc, char** argv, char** envp)
+{
+	... 
+	// 参数解析 配置文件解析
+	
+	// 实际启动代码
+	err = run_directly_or_daemon();
+	
+	...
+	return err;
+}
+```
+
