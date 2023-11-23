@@ -243,3 +243,4 @@ srs_error_t SrsThreadPool::run()
 }
 ```
 
+之后我们将进行run_hybrid_server的分析，一些实际的逻辑分析。
